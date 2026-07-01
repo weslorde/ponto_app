@@ -3,6 +3,7 @@ import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:path_provider/path_provider.dart';
+import 'package:ponto_app/function.dart';
 
 class EspelhoPontoPage extends StatefulWidget {
   const EspelhoPontoPage({super.key});
@@ -12,12 +13,25 @@ class EspelhoPontoPage extends StatefulWidget {
 }
 
 class _EspelhoPontoPageState extends State<EspelhoPontoPage> {
+  PontoService pontoService = PontoService();
   List<Map<String, dynamic>> registros = [];
 
+  // @override
+  // void initState() {
+  //   super.initState();
+  //   carregar();
+  // }
   @override
   void initState() {
     super.initState();
-    carregar();
+
+    pontoService.onAtualizar = () {
+      if (mounted) {
+        setState(() {});
+      }
+    };
+
+    pontoService.iniciar();
   }
 
   Future<File> getArquivo() async {
@@ -35,28 +49,11 @@ class _EspelhoPontoPageState extends State<EspelhoPontoPage> {
 
     registros = List<Map<String, dynamic>>.from(jsonDecode(texto));
 
-    registros.sort((a, b) =>
-        DateTime.parse(a["data"]).compareTo(DateTime.parse(b["data"])));
+    registros.sort(
+      (a, b) => DateTime.parse(a["data"]).compareTo(DateTime.parse(b["data"])),
+    );
 
     setState(() {});
-  }
-
-  Map<String, List<Map<String, dynamic>>> agruparPorDia() {
-    Map<String, List<Map<String, dynamic>>> mapa = {};
-
-    for (var r in registros) {
-      final data = DateTime.parse(r["data"]);
-
-      final chave =
-          "${data.day.toString().padLeft(2, '0')}/"
-          "${data.month.toString().padLeft(2, '0')}/"
-          "${data.year}";
-
-      mapa.putIfAbsent(chave, () => []);
-      mapa[chave]!.add(r);
-    }
-
-    return mapa;
   }
 
   // ===== SALDO POR DIA (TEXTO) =====
@@ -137,13 +134,11 @@ class _EspelhoPontoPageState extends State<EspelhoPontoPage> {
 
   @override
   Widget build(BuildContext context) {
-    final dias = agruparPorDia();
+    final dias = pontoService.agruparPorDia();
     final geral = saldoGeral(dias);
 
     return Scaffold(
-      appBar: AppBar(
-        title: const Text("Espelho de Ponto"),
-      ),
+      appBar: AppBar(title: const Text("Espelho de Ponto")),
       body: dias.isEmpty
           ? const Center(child: Text("Sem registros"))
           : Column(
@@ -199,8 +194,7 @@ class _EspelhoPontoPageState extends State<EspelhoPontoPage> {
 
                               ...List.generate(lista.length, (i) {
                                 final r = lista[i];
-                                final data =
-                                    DateTime.parse(r["data"]);
+                                final data = DateTime.parse(r["data"]);
 
                                 String tipo;
 

@@ -3,14 +3,14 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 
-class CameraPage extends StatefulWidget {
-  const CameraPage({super.key});
+class CameraPage2 extends StatefulWidget {
+  const CameraPage2({super.key});
 
   @override
-  State<CameraPage> createState() => _CameraPageState();
+  State<CameraPage2> createState() => _CameraPageState();
 }
 
-class _CameraPageState extends State<CameraPage> {
+class _CameraPageState extends State<CameraPage2> {
   final ImagePicker _picker = ImagePicker();
 
   File? imagem;
@@ -18,7 +18,9 @@ class _CameraPageState extends State<CameraPage> {
   Future<void> tirarFoto() async {
     final XFile? foto = await _picker.pickImage(
       source: ImageSource.camera,
-      imageQuality: 85,
+      maxWidth: 800,
+      maxHeight: 600,
+      imageQuality: 100,
     );
 
     if (foto != null) {

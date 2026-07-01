@@ -1,11 +1,9 @@
-import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
-import 'package:image_picker/image_picker.dart';
-import 'package:path/path.dart' as p;
-import 'package:path_provider/path_provider.dart';
+import 'package:open_filex/open_filex.dart';
 import 'package:ponto_app/espelho.dart';
+import 'package:ponto_app/function.dart';
 
 void main() {
   runApp(
@@ -21,96 +19,25 @@ class HomePage extends StatefulWidget {
 }
 
 class _HomePageState extends State<HomePage> {
-  final picker = ImagePicker();
-
-  List<Map<String, dynamic>> registros = [];
-
-  late Directory pasta;
-  late File arquivoJson;
+  final PontoService pontoService = PontoService();
 
   @override
   void initState() {
     super.initState();
-    iniciar();
-  }
 
-  Future<void> iniciar() async {
-    pasta = await getApplicationDocumentsDirectory();
-
-    final pastaFotos = Directory("${pasta.path}/fotos");
-
-    if (!await pastaFotos.exists()) {
-      await pastaFotos.create(recursive: true);
-    }
-
-    arquivoJson = File("${pasta.path}/registros.json");
-
-    if (await arquivoJson.exists()) {
-      final texto = await arquivoJson.readAsString();
-
-      if (texto.isNotEmpty) {
-        registros = List<Map<String, dynamic>>.from(jsonDecode(texto));
+    pontoService.onAtualizar = () {
+      if (mounted) {
+        setState(() {});
       }
-    }
+    };
 
-    setState(() {});
-  }
-
-  Future<void> salvarJson() async {
-    await arquivoJson.writeAsString(jsonEncode(registros));
-  }
-
-  Future<void> tirarFoto() async {
-    final foto = await picker.pickImage(
-      source: ImageSource.camera,
-      imageQuality: 90,
-    );
-
-    if (foto == null) return;
-
-    final nome =
-        "${DateTime.now().millisecondsSinceEpoch}${p.extension(foto.path)}";
-
-    final destino = "${pasta.path}/fotos/$nome";
-
-    await File(foto.path).copy(destino);
-
-    registros.insert(0, {
-      "foto": destino,
-      "data": DateTime.now().toIso8601String(),
-    });
-
-    await salvarJson();
-
-    setState(() {});
-  }
-
-  String formatar(DateTime d) {
-    return "${d.day.toString().padLeft(2, "0")}/"
-        "${d.month.toString().padLeft(2, "0")}/"
-        "${d.year} "
-        "${d.hour.toString().padLeft(2, "0")}:"
-        "${d.minute.toString().padLeft(2, "0")}";
-  }
-
-  Future<void> excluir(int index) async {
-    final caminho = registros[index]["foto"];
-
-    final f = File(caminho);
-
-    if (await f.exists()) {
-      await f.delete();
-    }
-
-    registros.removeAt(index);
-
-    await salvarJson();
-
-    setState(() {});
+    pontoService.iniciar();
   }
 
   @override
   Widget build(BuildContext context) {
+    // print(pontoService.registros);
+    
     return Scaffold(
       appBar: AppBar(
         title: const Text("Registro de Ponto"),
@@ -130,16 +57,16 @@ class _HomePageState extends State<HomePage> {
       floatingActionButton: Padding(
         padding: const EdgeInsets.only(bottom: 60.0),
         child: FloatingActionButton(
-          onPressed: tirarFoto,
+          onPressed: pontoService.tirarFoto,
           child: const Icon(Icons.camera_alt),
         ),
       ),
-      body: registros.isEmpty
+      body: pontoService.registros.isEmpty
           ? const Center(child: Text("Nenhum registro"))
           : ListView.builder(
-              itemCount: registros.length,
+              itemCount: pontoService.registros.length,
               itemBuilder: (context, index) {
-                final item = registros[index];
+                final item = pontoService.registros[index];
 
                 final data = DateTime.parse(item["data"]);
 
@@ -151,17 +78,25 @@ class _HomePageState extends State<HomePage> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          formatar(data),
+                          pontoService.formatar(data),
                           style: const TextStyle(fontWeight: FontWeight.bold),
                         ),
                         const SizedBox(height: 10),
                         ClipRRect(
                           borderRadius: BorderRadius.circular(8),
-                          child: Image.file(
-                            File(item["foto"]),
-                            width: double.infinity,
-                            height: 220,
-                            fit: BoxFit.cover,
+                          child: GestureDetector(
+                            onLongPress: () async {
+                              await OpenFilex.open(item["foto"]);
+                            },
+                            child: ClipRRect(
+                              borderRadius: BorderRadius.circular(8),
+                              child: Image.file(
+                                File(item["foto"]),
+                                width: double.infinity,
+                                height: 220,
+                                fit: BoxFit.cover,
+                              ),
+                            ),
                           ),
                         ),
 
@@ -170,9 +105,41 @@ class _HomePageState extends State<HomePage> {
                           mainAxisAlignment: MainAxisAlignment.end,
                           children: [
                             IconButton(
+                              icon: const Icon(Icons.edit, color: Colors.blue),
+                              onPressed: () async {
+                                final data = await showDatePicker(
+                                  context: context,
+                                  initialDate: DateTime.parse(item["data"]),
+                                  firstDate: DateTime(2020),
+                                  lastDate: DateTime(2100),
+                                );
+
+                                if (data == null) return;
+
+                                final hora = await showTimePicker(
+                                  context: context,
+                                  initialTime: TimeOfDay.fromDateTime(
+                                    DateTime.parse(item["data"]),
+                                  ),
+                                );
+
+                                if (hora == null) return;
+
+                                final novaData = DateTime(
+                                  data.year,
+                                  data.month,
+                                  data.day,
+                                  hora.hour,
+                                  hora.minute,
+                                );
+
+                                await pontoService.editarData(index, novaData);
+                              },
+                            ),
+                            IconButton(
                               icon: const Icon(Icons.delete, color: Colors.red),
                               onPressed: () {
-                                excluir(index);
+                                pontoService.excluir(index);
                               },
                             ),
                           ],
