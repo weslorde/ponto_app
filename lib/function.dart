@@ -39,9 +39,12 @@ class PontoService {
       }
     }
 
-    registros.sort(
-      (a, b) => DateTime.parse(b["data"]).compareTo(DateTime.parse(a["data"])),
-    );
+    registros.sort((a, b) {
+      final ta = int.parse(p.basenameWithoutExtension(a["foto"]));
+      final tb = int.parse(p.basenameWithoutExtension(b["foto"]));
+
+      return ta.compareTo(tb);
+    });
 
     await salvarJson();
   }
@@ -111,19 +114,25 @@ class PontoService {
         "${d.minute.toString().padLeft(2, "0")}";
   }
 
-  Future<void> excluir(int index) async {
-    final caminho = registros[index]["foto"];
+  String cardFormatar(DateTime d) {
+    return "${d.hour.toString().padLeft(2, "0")}:"
+        "${d.minute.toString().padLeft(2, "0")}";
+  }
 
+  Future<void> excluir(String caminho) async {
+    // 1. Deleta o arquivo físico da foto no dispositivo
     final f = File(caminho);
-
     if (await f.exists()) {
       await f.delete();
     }
 
-    registros.removeAt(index);
+    // 2. Remove o mapa correspondente de dentro da lista 'registros'
+    registros.removeWhere((registro) => registro["foto"] == caminho);
 
+    // 3. Salva a nova lista no arquivo JSON
     await salvarJson();
 
+    // 4. Atualiza a tela
     onAtualizar.call();
   }
 
@@ -165,8 +174,7 @@ class PontoService {
       mapa[chave]!.add(r);
     }
 
-    print("mapaaaaaaaaa:" + mapa.toString());
+    //print("mapaaaaaaaaa:" + mapa.toString());
     return mapa;
-    
   }
 }
