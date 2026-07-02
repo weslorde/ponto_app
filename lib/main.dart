@@ -1,15 +1,47 @@
-import 'dart:io';
-
+import 'package:alarm/alarm.dart';
 import 'package:flutter/material.dart';
-import 'package:open_filex/open_filex.dart';
+import 'package:permission_handler/permission_handler.dart';
 import 'package:ponto_app/espelho.dart';
 import 'package:ponto_app/fotoCardWidget.dart';
 import 'package:ponto_app/function.dart';
 
-void main() {
-  runApp(
-    const MaterialApp(debugShowCheckedModeBanner: false, home: HomePage()),
-  );
+void main() async {
+  Future<void> solicitarPermissoes() async {
+    WidgetsFlutterBinding.ensureInitialized();
+
+    // 1. Verifica o status atual da permissão de notificações
+    var status = await Permission.notification.status;
+
+    // 2. Se ainda não foi permitida, faz o pedido na tela
+    if (status.isDenied) {
+      await Permission.notification.request();
+    }
+
+    // 3. No Android 12 ou superior, também é bom pedir autorização para alarmes exatos
+    if (await Permission.scheduleExactAlarm.isDenied) {
+      await Permission.scheduleExactAlarm.request();
+    }
+
+    if (await Permission.systemAlertWindow.isDenied) {
+      await Permission.systemAlertWindow.request();
+    }
+
+    if (await Permission.ignoreBatteryOptimizations.isDenied) {
+      await Permission.ignoreBatteryOptimizations.request();
+    }
+
+    await [
+      Permission.camera,
+      Permission.photos,
+      Permission.notification,
+    ].request();
+  }
+
+  await solicitarPermissoes();
+
+  await Alarm.init();
+
+  runApp(MaterialApp(debugShowCheckedModeBanner: false, home: HomePage()));
 }
 
 class HomePage extends StatefulWidget {
@@ -39,6 +71,8 @@ class _HomePageState extends State<HomePage> {
   Widget build(BuildContext context) {
     // print(pontoService.registros);
     final dias = pontoService.agruparPorDia();
+
+    print("MAP DIASSSssssssssss: $dias");
 
     return Scaffold(
       appBar: AppBar(
@@ -81,14 +115,19 @@ class _HomePageState extends State<HomePage> {
                 final String dateIndex =
                     chavesDias[index]; //Facilitar a leitura do código do bloco abaixo
 
-                print("aaaaaaaaaaa   " + list.toString());
+                // print("aaaaaaaaaaa   " + list.toString());
 
                 //final data = DateTime.parse(item["data"]);
 
                 return Card(
                   margin: const EdgeInsets.all(10),
                   child: ExpansionTile(
-                    title: Text(dateIndex),
+                    initiallyExpanded: index == (dias.length - 1)
+                        ? true
+                        : false, //Abrir o Tile do dia mais atual.
+                    title: Text(
+                      "$dateIndex  -  ${pontoService.diaSemana(dateIndex)} ",
+                    ),
                     children: [
                       Row(
                         children: [
@@ -102,9 +141,17 @@ class _HomePageState extends State<HomePage> {
                                     fontSize: 16,
                                   ),
                                 ),
-                                RegistroCard(registro: list[0], index: index, pontoService: pontoService,),
+                                RegistroCard(
+                                  registro: list[0],
+                                  index: index,
+                                  pontoService: pontoService,
+                                ),
                                 if (list.length > 1)
-                                  RegistroCard(registro: list[1], index: index, pontoService: pontoService,),
+                                  RegistroCard(
+                                    registro: list[1],
+                                    index: index,
+                                    pontoService: pontoService,
+                                  ),
                               ],
                             ),
                           ),
@@ -119,9 +166,18 @@ class _HomePageState extends State<HomePage> {
                                   ),
                                 ),
                                 if (list.length > 3)
-                                  RegistroCard(registro: list[3], index: index, pontoService: pontoService,),
+                                  RegistroCard(
+                                    registro: list[3],
+                                    index: index,
+                                    pontoService: pontoService,
+                                  ),
+                                if (list.length == 3) SizedBox(height: 200),
                                 if (list.length > 2)
-                                  RegistroCard(registro: list[2], index: index, pontoService: pontoService,),
+                                  RegistroCard(
+                                    registro: list[2],
+                                    index: index,
+                                    pontoService: pontoService,
+                                  ),
                               ],
                             ),
                           ),
@@ -130,94 +186,6 @@ class _HomePageState extends State<HomePage> {
                     ],
                   ),
                 );
-                /*return Card(
-                  margin: const EdgeInsets.all(10),
-                  child: Padding(
-                    padding: const EdgeInsets.all(10),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          "teste",
-                          //pontoService.formatar(data),
-                          style: const TextStyle(fontWeight: FontWeight.bold),
-                        ),
-                        const SizedBox(height: 10),
-                        ClipRRect(
-                          borderRadius: BorderRadius.circular(8),
-                          child: GestureDetector(
-                            onLongPress: () async {
-                              //await OpenFilex.open(item["foto"]);
-                            },
-                            child: ClipRRect(
-                              borderRadius: BorderRadius.circular(8),
-                              child: Image.file(
-                                File(
-                                  "/storage/emulated/0/Pictures/fotosPonto/1782899879737.jpg",
-                                ),
-                                //File(item["foto"]),
-                                width: double.infinity,
-                                height: 220,
-                                fit: BoxFit.cover,
-                              ),
-                            ),
-                          ),
-                        ),
-
-                        const SizedBox(height: 10),
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.end,
-                          children: [
-                            IconButton(
-                              icon: const Icon(Icons.edit, color: Colors.blue),
-                              onPressed: () async {
-                                final data = await showDatePicker(
-                                  context: context,
-                                  //initialDate: DateTime.parse(item["data"]),
-                                  initialDate: DateTime.parse(
-                                    "2026-06-30T12:47:22.987",
-                                  ),
-                                  firstDate: DateTime(2020),
-                                  lastDate: DateTime(2100),
-                                );
-
-                                if (data == null) return;
-
-                                final hora = await showTimePicker(
-                                  context: context,
-                                  initialTime: TimeOfDay.fromDateTime(
-                                    //DateTime.parse(item["data"]),
-                                    DateTime.parse("2026-06-30T12:47:22.987"),
-                                  ),
-                                );
-
-                                if (hora == null) return;
-
-                                final novaData = DateTime(
-                                  data.year,
-                                  data.month,
-                                  data.day,
-                                  hora.hour,
-                                  hora.minute,
-                                );
-
-                                await pontoService.editarData(index, novaData);
-                              },
-                            ),
-                            IconButton(
-                              icon: const Icon(Icons.delete, color: Colors.red),
-                              onPressed: () {
-                                pontoService.excluir(index);
-                              },
-                            ),
-                          ],
-                        ),
-                      ],
-                    ),
-                  ),
-                );
-                */
-                //Fim tela
               },
             ),
     );

@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:io';
 import 'dart:ui';
 
+import 'package:alarm/alarm.dart';
 import 'package:external_path/external_path.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:path/path.dart' as p;
@@ -89,21 +90,62 @@ class PontoService {
 
     if (foto == null) return;
 
-    final nome =
-        "${DateTime.now().millisecondsSinceEpoch}${p.extension(foto.path)}";
+    final dataTime = DateTime.now();
+
+    final nome = "${dataTime.millisecondsSinceEpoch}${p.extension(foto.path)}";
 
     final destino = "${pasta.path}/$nome";
 
     await File(foto.path).copy(destino);
 
-    registros.insert(0, {
-      "foto": destino,
-      "data": DateTime.now().toIso8601String(),
-    });
+    registros.insert(0, {"foto": destino, "data": dataTime.toIso8601String()});
 
-    await salvarJson();
+    await reconstruirJson();
+
+    await verificarAlmoco(dataTime);
 
     onAtualizar.call();
+  }
+
+  Future<void> verificarAlmoco(DateTime dataRegistro) async {
+    final quantidadeHoje = registros.where((r) {
+      final data = DateTime.parse(r["data"]);
+
+      return data.year == dataRegistro.year &&
+          data.month == dataRegistro.month &&
+          data.day == dataRegistro.day;
+    }).length;
+
+    if (quantidadeHoje == 2) {
+      final horarioAlarme = dataRegistro.add(const Duration(minutes: 55));
+      criarAlarme(horarioAlarme);
+
+      // Agendar o alarme
+      print("ALARMEEEEEE: $horarioAlarme");
+    }
+  }
+
+  Future<void> criarAlarme(DateTime horario) async {
+    await Alarm.set(
+      alarmSettings: AlarmSettings(
+        volumeSettings: VolumeSettings.fixed(volume: 1.0),
+        id: 1,
+        dateTime: horario,
+        assetAudioPath: 'assets/alarmsong.wav',
+        loopAudio: false,
+        vibrate: true,
+        warningNotificationOnKill: true,
+        androidFullScreenIntent: true,
+        androidStopAlarmOnTermination: false,
+        notificationSettings: NotificationSettings(
+          title: 'Hora de voltar!',
+          body: 'Seu horário de almoço terminou.',
+          icon: '@mipmap/ic_launcher',
+          stopButton: 'Parar',
+          iconColor: Color.fromARGB(255, 145, 39, 39),
+        ),
+      ),
+    );
   }
 
   String formatar(DateTime d) {
@@ -123,40 +165,50 @@ class PontoService {
     // 1. Deleta o arquivo físico da foto no dispositivo
     final f = File(caminho);
     if (await f.exists()) {
-      await f.delete();
+      try {
+        await f.delete();
+      } catch (e) {
+        throw Exception(
+          "Não foi possível deletar este arquivo. Para deletar acesse a pasta de fotos do celular e exclua manualmente.",
+        );
+      }
     }
 
     // 2. Remove o mapa correspondente de dentro da lista 'registros'
     registros.removeWhere((registro) => registro["foto"] == caminho);
 
     // 3. Salva a nova lista no arquivo JSON
-    await salvarJson();
+    await reconstruirJson();
 
     // 4. Atualiza a tela
     onAtualizar.call();
   }
 
-  Future<void> editarData(int index, DateTime novaData) async {
-    final caminhoAntigo = registros[index]["foto"];
+  Future<void> editarData(String caminhoFoto, DateTime novaData) async {
+    final registro = registros.firstWhere((r) => r["foto"] == caminhoFoto);
 
-    final arquivoAntigo = File(caminhoAntigo);
+    final arquivoAntigo = File(caminhoFoto);
 
     if (!await arquivoAntigo.exists()) return;
 
-    final extensao = p.extension(caminhoAntigo);
-
+    final extensao = p.extension(caminhoFoto);
     final novoNome = "${novaData.millisecondsSinceEpoch}$extensao";
-
     final novoCaminho = "${pasta.path}/$novoNome";
 
-    await arquivoAntigo.rename(novoCaminho);
+    try {
+      await arquivoAntigo.rename(novoCaminho);
+    } catch (e) {
+      throw Exception(
+        "Não foi possível alterar este arquivo. Ele pode pertencer a uma instalação anterior do aplicativo.",
+      );
+    }
 
-    registros[index]["foto"] = novoCaminho;
-    registros[index]["data"] = novaData.toIso8601String();
+    registro["foto"] = novoCaminho;
+    registro["data"] = novaData.toIso8601String();
 
-    await salvarJson();
+    await reconstruirJson();
 
-    onAtualizar.call();
+    onAtualizar();
   }
 
   Map<String, List<Map<String, dynamic>>> agruparPorDia() {
@@ -176,5 +228,27 @@ class PontoService {
 
     //print("mapaaaaaaaaa:" + mapa.toString());
     return mapa;
+  }
+
+  String diaSemana(String data) {
+    final partes = data.split('/');
+
+    final dt = DateTime(
+      int.parse(partes[2]), // ano
+      int.parse(partes[1]), // mês
+      int.parse(partes[0]), // dia
+    );
+
+    const dias = [
+      'Segunda-feira',
+      'Terça-feira',
+      'Quarta-feira',
+      'Quinta-feira',
+      'Sexta-feira',
+      'Sábado',
+      'Domingo',
+    ];
+
+    return dias[dt.weekday - 1];
   }
 }

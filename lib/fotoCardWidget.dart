@@ -31,7 +31,7 @@ class RegistroCard extends StatelessWidget {
         child: Padding(
           padding: const EdgeInsets.all(10),
           child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+            crossAxisAlignment: CrossAxisAlignment.center,
             children: [
               Text(
                 pontoService.cardFormatar(data),
@@ -78,7 +78,21 @@ class RegistroCard extends StatelessWidget {
                             );
 
                             if (novaData != null) {
-                              await pontoService.editarData(index, novaData);
+                              try {
+                                await pontoService.editarData(foto, novaData);
+                              } catch (e) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(
+                                    content: Text(
+                                      e.toString().replaceFirst(
+                                        "Exception: ",
+                                        "",
+                                      ),
+                                    ),
+                                    duration: const Duration(seconds: 6),
+                                  ),
+                                );
+                              }
                             }
                           },
                         ),
@@ -89,7 +103,23 @@ class RegistroCard extends StatelessWidget {
                             color: Colors.red,
                             size: 30,
                           ),
-                          onPressed: () => pontoService.excluir(foto),
+                          onPressed: () async {
+                            try {
+                              await pontoService.excluir(foto);
+                            } catch (e) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(
+                                  content: Text(
+                                    e.toString().replaceFirst(
+                                      "Exception: ",
+                                      "",
+                                    ),
+                                  ),
+                                  duration: const Duration(seconds: 6),
+                                ),
+                              );
+                            }
+                          },
                         ),
                       ],
                     ),
