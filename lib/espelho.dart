@@ -60,28 +60,12 @@ class _EspelhoPontoPageState extends State<EspelhoPontoPage> {
   String calcularSaldo(List<Map<String, dynamic>> lista) {
     if (lista.length < 2) return "incompleto";
 
-    final entrada = DateTime.parse(lista.first["data"]);
-    final saida = DateTime.parse(lista.last["data"]);
+    final minutosSaldo = saldoDiaMinutos(lista);
 
-    const jornada = Duration(hours: 9);
+    final horas = minutosSaldo ~/ 60;
+    final minutos = minutosSaldo.abs() % 60;
 
-    Duration tempoTotal = saida.difference(entrada);
-    Duration almocoReal = Duration.zero;
-
-    if (lista.length >= 3) {
-      final saidaAlmoco = DateTime.parse(lista[1]["data"]);
-      final voltaAlmoco = DateTime.parse(lista[2]["data"]);
-
-      almocoReal = voltaAlmoco.difference(saidaAlmoco);
-    }
-
-    final trabalhoLiquido = tempoTotal - almocoReal;
-    final saldo = trabalhoLiquido - jornada;
-
-    final horas = saldo.inMinutes ~/ 60;
-    final minutos = saldo.inMinutes.abs() % 60;
-
-    final sinal = saldo.isNegative ? "-" : "+";
+    final sinal = minutosSaldo < 0 ? "-" : "+";
 
     return "$sinal${horas.abs()}h ${minutos.toString().padLeft(2, '0')}m";
   }

@@ -9,6 +9,10 @@ import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 
 class PontoService {
+  late File arquivoConfig;
+
+  int saldoAnterior = 0; // em minutos
+
   VoidCallback onAtualizar = () {};
 
   final picker = ImagePicker();
@@ -69,6 +73,19 @@ class PontoService {
     if (!await pasta.exists()) {
       await pasta.create(recursive: true);
     }
+    //
+    //Salvar Saldo anterior Json
+    arquivoConfig = File("${pastaInterna.path}/config.json");
+
+    if (!await arquivoConfig.exists()) {
+      await arquivoConfig.writeAsString(jsonEncode({"saldoAnterior": 0}));
+    }
+
+    final config = jsonDecode(await arquivoConfig.readAsString());
+
+    saldoAnterior = config["saldoAnterior"] ?? 0;
+    //Fim salvar saldo anterior Json
+    //
 
     // Reconstrói a lista a partir das fotos
     await reconstruirJson();
@@ -78,6 +95,16 @@ class PontoService {
 
   Future<void> salvarJson() async {
     await arquivoJson.writeAsString(jsonEncode(registros));
+  }
+
+  Future<void> salvarSaldoAnterior(int minutos) async {
+    saldoAnterior = minutos;
+
+    await arquivoConfig.writeAsString(
+      jsonEncode({"saldoAnterior": saldoAnterior}),
+    );
+
+    onAtualizar();
   }
 
   Future<void> tirarFoto() async {
@@ -117,11 +144,7 @@ class PontoService {
     }).length;
 
     if (quantidadeHoje == 2) {
-      final horarioAlarme = dataRegistro.add(const Duration(minutes: 55));
-      criarAlarme(horarioAlarme);
-
-      // Agendar o alarme
-      print("ALARMEEEEEE: $horarioAlarme");
+      criarAlarme(dataRegistro);
     }
   }
 
@@ -130,7 +153,27 @@ class PontoService {
       alarmSettings: AlarmSettings(
         volumeSettings: VolumeSettings.fixed(volume: 1.0),
         id: 1,
-        dateTime: horario,
+        dateTime: horario.add(const Duration(minutes: 55)),
+        assetAudioPath: 'assets/alarmsong.wav',
+        loopAudio: false,
+        vibrate: true,
+        warningNotificationOnKill: true,
+        androidFullScreenIntent: true,
+        androidStopAlarmOnTermination: false,
+        notificationSettings: NotificationSettings(
+          title: 'Hora de voltar!',
+          body: 'Seu horário de almoço terminou.',
+          icon: '@mipmap/ic_launcher',
+          stopButton: 'Parar',
+          iconColor: Color.fromARGB(255, 145, 39, 39),
+        ),
+      ),
+    );
+    await Alarm.set(
+      alarmSettings: AlarmSettings(
+        volumeSettings: VolumeSettings.fixed(volume: 0.1),
+        id: 2,
+        dateTime: horario.add(const Duration(minutes: 58)),
         assetAudioPath: 'assets/alarmsong.wav',
         loopAudio: false,
         vibrate: true,
@@ -251,4 +294,186 @@ class PontoService {
 
     return dias[dt.weekday - 1];
   }
+
+  int saldoDiaMinutos(List<Map<String, dynamic>> lista) {
+    if (lista.length < 4) return 0;
+
+    DateTime entrada = DateTime.parse(lista.first["data"]);
+    DateTime saida = DateTime.parse(lista.last["data"]);
+
+    final quinta = entrada.weekday == DateTime.thursday;
+
+    final jornada = Duration(hours: quinta ? 8 : 9);
+
+    // Entrada: até 5 minutos antes das 07:00 conta como 07:00
+    final entradaEsperada = DateTime(
+      entrada.year,
+      entrada.month,
+      entrada.day,
+      7,
+      0,
+    );
+
+    final difEntrada = entradaEsperada.difference(entrada).inMinutes;
+
+    if (difEntrada >= 0 && difEntrada <= 5) {
+      entrada = entradaEsperada;
+    }
+
+    // Saída: até 5 minutos depois do horário conta como horário exato
+    final horaSaida = quinta ? 16 : 17;
+
+    final saidaEsperada = DateTime(
+      saida.year,
+      saida.month,
+      saida.day,
+      horaSaida,
+      0,
+    );
+
+    final difSaida = saida.difference(saidaEsperada).inMinutes;
+
+    if (difSaida >= 0 && difSaida <= 5) {
+      saida = saidaEsperada;
+    }
+
+    Duration tempoTotal = saida.difference(entrada);
+    Duration almocoReal = Duration.zero;
+
+    if (lista.length >= 3) {
+      final saidaAlmoco = DateTime.parse(lista[1]["data"]);
+      final voltaAlmoco = DateTime.parse(lista[2]["data"]);
+
+      almocoReal = voltaAlmoco.difference(saidaAlmoco);
+    }
+
+    final trabalhoLiquido = tempoTotal - almocoReal;
+    final saldo = trabalhoLiquido - jornada;
+
+    return saldo.inMinutes;
+  }
+
+  // ===== SALDO POR DIA (TEXTO) =====
+  String calcularSaldo(List<Map<String, dynamic>> lista) {
+    if (lista.length < 2) return "incompleto";
+
+    final minutosSaldo = saldoDiaMinutos(lista);
+
+    final horas = minutosSaldo ~/ 60;
+    final minutos = minutosSaldo.abs() % 60;
+
+    final sinal = minutosSaldo < 0 ? "-" : "+";
+
+    return "$sinal${horas.abs()}h ${minutos.toString().padLeft(2, '0')}m";
+  }
+
+  // ===== SALDO GERAL =====
+  String saldoGeral(Map<String, List<Map<String, dynamic>>> dias) {
+    int total = saldoAnterior;
+
+    for (var lista in dias.values) {
+      total += saldoDiaMinutos(lista);
+    }
+
+    final horas = total ~/ 60;
+    final minutos = total.abs() % 60;
+
+    final sinal = total.isNegative ? "-" : "+";
+
+    return "$sinal${horas.abs()}h ${minutos.toString().padLeft(2, '0')}m";
+  }
+
+  Map<String, Map<int, Map<String, List<Map<String, dynamic>>>>>
+  agruparPorMesESemana() {
+    final dias = agruparPorDia();
+
+    final resultado =
+        <String, Map<int, Map<String, List<Map<String, dynamic>>>>>{};
+
+    for (final entry in dias.entries) {
+      final partes = entry.key.split('/');
+
+      final data = DateTime(
+        int.parse(partes[2]),
+        int.parse(partes[1]),
+        int.parse(partes[0]),
+      );
+
+      final mes = "${_nomeMes(data.month)}/${data.year}";
+
+      // Semana do mês (1,2,3,4,5)
+      final semana = ((data.day - 1) ~/ 7) + 1;
+
+      resultado.putIfAbsent(mes, () => {});
+      resultado[mes]!.putIfAbsent(semana, () => {});
+      resultado[mes]![semana]![entry.key] = entry.value;
+    }
+
+    return resultado;
+  }
+
+  String _nomeMes(int mes) {
+    const meses = [
+      "Janeiro",
+      "Fevereiro",
+      "Março",
+      "Abril",
+      "Maio",
+      "Junho",
+      "Julho",
+      "Agosto",
+      "Setembro",
+      "Outubro",
+      "Novembro",
+      "Dezembro",
+    ];
+
+    return meses[mes - 1];
+  }
+
+  int saldoSemanaMinutos(Map<String, List<Map<String, dynamic>>> dias) {
+    int total = 0;
+
+    for (final lista in dias.values) {
+      total += saldoDiaMinutos(lista);
+    }
+
+    return total;
+  }
+
+  String saldoSemana(Map<String, List<Map<String, dynamic>>> dias) {
+    final total = saldoSemanaMinutos(dias);
+
+    final horas = total ~/ 60;
+    final minutos = total.abs() % 60;
+
+    final sinal = total < 0 ? "-" : "+";
+
+    return "$sinal${horas.abs()}h ${minutos.toString().padLeft(2, '0')}m";
+  }
+
+  int saldoMesMinutos(
+    Map<int, Map<String, List<Map<String, dynamic>>>> semanas,
+  ) {
+    int total = 0;
+
+    for (final dias in semanas.values) {
+      total += saldoSemanaMinutos(dias);
+    }
+
+    return total;
+  }
+
+  String saldoMes(Map<int, Map<String, List<Map<String, dynamic>>>> semanas) {
+    final total = saldoMesMinutos(semanas);
+
+    final horas = total ~/ 60;
+    final minutos = total.abs() % 60;
+
+    final sinal = total < 0 ? "-" : "+";
+
+    return "$sinal${horas.abs()}h ${minutos.toString().padLeft(2, '0')}m";
+  }
+
+  // Fim função
 }

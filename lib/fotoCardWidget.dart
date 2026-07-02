@@ -27,6 +27,7 @@ class RegistroCard extends StatelessWidget {
       height: 200,
       width: double.infinity,
       child: Card(
+        color: Colors.blueGrey[50],
         margin: const EdgeInsets.all(10),
         child: Padding(
           padding: const EdgeInsets.all(10),

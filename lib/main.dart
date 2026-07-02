@@ -1,9 +1,11 @@
 import 'package:alarm/alarm.dart';
 import 'package:flutter/material.dart';
 import 'package:permission_handler/permission_handler.dart';
+import 'package:ponto_app/configpage.dart';
 import 'package:ponto_app/espelho.dart';
 import 'package:ponto_app/fotoCardWidget.dart';
 import 'package:ponto_app/function.dart';
+import 'package:ponto_app/mensalespelho.dart';
 
 void main() async {
   Future<void> solicitarPermissoes() async {
@@ -41,7 +43,13 @@ void main() async {
 
   await Alarm.init();
 
-  runApp(MaterialApp(debugShowCheckedModeBanner: false, home: HomePage()));
+  runApp(
+    MaterialApp(
+      debugShowCheckedModeBanner: false,
+      theme: ThemeData(colorScheme: ColorScheme.fromSeed(seedColor: const Color.fromARGB(255, 114, 146, 169)), useMaterial3: true, dividerColor: Colors.transparent),
+      home: HomePage(),
+    ),
+  );
 }
 
 class HomePage extends StatefulWidget {
@@ -79,11 +87,20 @@ class _HomePageState extends State<HomePage> {
         title: const Text("Registro de Ponto"),
         actions: [
           IconButton(
+            icon: const Icon(Icons.settings),
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => ConfigPage()),
+              );
+            },
+          ),
+          IconButton(
             icon: const Icon(Icons.list_alt),
             onPressed: () {
               Navigator.push(
                 context,
-                MaterialPageRoute(builder: (_) => const EspelhoPontoPage()),
+                MaterialPageRoute(builder: (_) => EspelhoMensalPage()),
               );
             },
           ),
@@ -125,8 +142,40 @@ class _HomePageState extends State<HomePage> {
                     initiallyExpanded: index == (dias.length - 1)
                         ? true
                         : false, //Abrir o Tile do dia mais atual.
-                    title: Text(
-                      "$dateIndex  -  ${pontoService.diaSemana(dateIndex)} ",
+                    title: Row(
+                      children: [
+                        Text(
+                          "${dateIndex.substring(0, 5)} - ${pontoService.diaSemana(dateIndex)}",
+                        ),
+                        pontoService.saldoDiaMinutos(list) > 0
+                            ? Text(
+                                "   ${pontoService.calcularSaldo(list)}",
+                                style: TextStyle(
+                                  color: Colors.blue,
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 16,
+                                ),
+                              )
+                            : list.length == 4
+                            ? Text(
+                                "   ${pontoService.calcularSaldo(list)}",
+                                style: TextStyle(
+                                  color: pontoService.saldoDiaMinutos(list) < 0
+                                      ? Colors.red
+                                      : Colors.grey,
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 16,
+                                ),
+                              )
+                            : Text(
+                                "   Incompleto",
+                                style: TextStyle(
+                                  color: Colors.grey,
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 16,
+                                ),
+                              ),
+                      ],
                     ),
                     children: [
                       Row(
