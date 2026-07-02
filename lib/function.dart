@@ -296,15 +296,22 @@ class PontoService {
   }
 
   int saldoDiaMinutos(List<Map<String, dynamic>> lista) {
-    if (lista.length < 4) return 0;
+  if (lista.length < 4) return 0;
 
-    DateTime entrada = DateTime.parse(lista.first["data"]);
-    DateTime saida = DateTime.parse(lista.last["data"]);
+  DateTime entrada = DateTime.parse(lista.first["data"]);
+  DateTime saida = DateTime.parse(lista.last["data"]);
 
-    final quinta = entrada.weekday == DateTime.thursday;
+  final weekday = entrada.weekday;
+  final quinta = weekday == DateTime.thursday;
+  final fimDeSemana =
+      weekday == DateTime.saturday || weekday == DateTime.sunday;
 
-    final jornada = Duration(hours: quinta ? 8 : 9);
+  final jornada = fimDeSemana
+      ? Duration.zero
+      : Duration(hours: quinta ? 8 : 9);
 
+  // Ajustes apenas para dias úteis
+  if (!fimDeSemana) {
     // Entrada: até 5 minutos antes das 07:00 conta como 07:00
     final entradaEsperada = DateTime(
       entrada.year,
@@ -336,22 +343,21 @@ class PontoService {
     if (difSaida >= 0 && difSaida <= 5) {
       saida = saidaEsperada;
     }
-
-    Duration tempoTotal = saida.difference(entrada);
-    Duration almocoReal = Duration.zero;
-
-    if (lista.length >= 3) {
-      final saidaAlmoco = DateTime.parse(lista[1]["data"]);
-      final voltaAlmoco = DateTime.parse(lista[2]["data"]);
-
-      almocoReal = voltaAlmoco.difference(saidaAlmoco);
-    }
-
-    final trabalhoLiquido = tempoTotal - almocoReal;
-    final saldo = trabalhoLiquido - jornada;
-
-    return saldo.inMinutes;
   }
+
+  Duration tempoTotal = saida.difference(entrada);
+  Duration almocoReal = Duration.zero;
+
+  final saidaAlmoco = DateTime.parse(lista[1]["data"]);
+  final voltaAlmoco = DateTime.parse(lista[2]["data"]);
+
+  almocoReal = voltaAlmoco.difference(saidaAlmoco);
+
+  final trabalhoLiquido = tempoTotal - almocoReal;
+  final saldo = trabalhoLiquido - jornada;
+
+  return saldo.inMinutes;
+}
 
   // ===== SALDO POR DIA (TEXTO) =====
   String calcularSaldo(List<Map<String, dynamic>> lista) {

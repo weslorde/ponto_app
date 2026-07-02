@@ -2,7 +2,6 @@ import 'package:alarm/alarm.dart';
 import 'package:flutter/material.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:ponto_app/configpage.dart';
-import 'package:ponto_app/espelho.dart';
 import 'package:ponto_app/fotoCardWidget.dart';
 import 'package:ponto_app/function.dart';
 import 'package:ponto_app/mensalespelho.dart';
@@ -80,7 +79,7 @@ class _HomePageState extends State<HomePage> {
     // print(pontoService.registros);
     final dias = pontoService.agruparPorDia();
 
-    print("MAP DIASSSssssssssss: $dias");
+    //print("MAP DIASSSssssssssss: $dias");
 
     return Scaffold(
       appBar: AppBar(
