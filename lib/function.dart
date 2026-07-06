@@ -389,34 +389,42 @@ class PontoService {
     return "$sinal${horas.abs()}h ${minutos.toString().padLeft(2, '0')}m";
   }
 
-  Map<String, Map<int, Map<String, List<Map<String, dynamic>>>>>
-  agruparPorMesESemana() {
-    final dias = agruparPorDia();
+Map<String, Map<int, Map<String, List<Map<String, dynamic>>>>>
+agruparPorMesESemana() {
+  final dias = agruparPorDia();
 
-    final resultado =
-        <String, Map<int, Map<String, List<Map<String, dynamic>>>>>{};
+  final resultado =
+      <String, Map<int, Map<String, List<Map<String, dynamic>>>>>{};
 
-    for (final entry in dias.entries) {
-      final partes = entry.key.split('/');
+  for (final entry in dias.entries) {
+    final partes = entry.key.split('/');
 
-      final data = DateTime(
-        int.parse(partes[2]),
-        int.parse(partes[1]),
-        int.parse(partes[0]),
-      );
+    final data = DateTime(
+      int.parse(partes[2]),
+      int.parse(partes[1]),
+      int.parse(partes[0]),
+    );
 
-      final mes = "${_nomeMes(data.month)}/${data.year}";
+    final mes = "${_nomeMes(data.month)}/${data.year}";
 
-      // Semana do mês (1,2,3,4,5)
-      final semana = ((data.day - 1) ~/ 7) + 1;
+    // Segunda-feira da primeira semana do mês
+    final primeiroDiaMes = DateTime(data.year, data.month, 1);
 
-      resultado.putIfAbsent(mes, () => {});
-      resultado[mes]!.putIfAbsent(semana, () => {});
-      resultado[mes]![semana]![entry.key] = entry.value;
-    }
+    final primeiraSegunda = primeiroDiaMes.subtract(
+      Duration(days: primeiroDiaMes.weekday - DateTime.monday),
+    );
 
-    return resultado;
+    // Semana do calendário (sempre segunda -> domingo)
+    final semana =
+        (data.difference(primeiraSegunda).inDays ~/ 7) + 1;
+
+    resultado.putIfAbsent(mes, () => {});
+    resultado[mes]!.putIfAbsent(semana, () => {});
+    resultado[mes]![semana]![entry.key] = entry.value;
   }
+
+  return resultado;
+}
 
   String _nomeMes(int mes) {
     const meses = [
